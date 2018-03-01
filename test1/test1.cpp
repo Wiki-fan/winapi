@@ -4,10 +4,11 @@
 #include "stdafx.h"
 #include <iostream>
 #include <vector>
+#include <string>
 #include <ctime>
 #include <Windows.h>
 
-// –аботает иногда.
+/// –аботает иногда.
 void DescribeError(DWORD dwError)
 {
 	LPWSTR lpBuffer;
@@ -26,14 +27,15 @@ void DescribeError(DWORD dwError)
 	}
 }
 
-void TestVirtualAlloc( LPSYSTEM_INFO info)
+void TestVirtualAlloc( LPSYSTEM_INFO info, DWORD allocationType, std::string allocationTypeDescr, DWORD protect, std::string protectionDescr)
 {
 	std::vector<LPVOID> addresses;
 	for( int i = 0;; ++i ) {
-		LPVOID addr = VirtualAlloc( NULL, info->dwPageSize, MEM_RESERVE, PAGE_READWRITE );
+		LPVOID addr = VirtualAlloc( NULL, info->dwPageSize, allocationType, protect );
 		if( addr == NULL ) {
 			DWORD err = GetLastError();
-			printf( "Allocated %d blocks, then error %d\n", i, err );
+			std::cout << "Allocated " << i << " blocks with " << allocationTypeDescr << " and " << protectionDescr 
+				<< " then error " << err << std::endl;
 			DescribeError( err );
 			break;
 		} else {
@@ -41,35 +43,75 @@ void TestVirtualAlloc( LPSYSTEM_INFO info)
 		}
 	}
 	std::cin.get();
+	for( int i = 0; i < 10; ++i ) {
+		std::cout << addresses[i] << ' ';
+	}
+
 	bool freedSuccessfully = true;
 	for( int i = 0; i < addresses.size(); ++i ) {
 		if( VirtualFree( addresses[i], 0, MEM_RELEASE ) == NULL ) {
 			freedSuccessfully = false;
 			DWORD err = GetLastError();
-			printf( "Freed %d blocks, then error %d\n", i, err );
+			std::wcout << L"Freed " <<i << L"blocks, then error "<< err;
 			DescribeError( err );
 			break;
 		}
 	}
 	if( freedSuccessfully ) {
-		printf( "Freed %d blocks", addresses.size() );
+		std::wcout << "Freed " << addresses.size() <<"blocks" <<std::endl;
 	}
+	std::cin.get();
 
 }
 
 void TestVirtualRandomAlloc( LPSYSTEM_INFO info )
 {
 	std::cout << "RAND_MAX = " << RAND_MAX << std::endl;
-	const int range = ((char*)(info->lpMaximumApplicationAddress) - (char*)(info->lpMinimumApplicationAddress)) / info->dwAllocationGranularity;
-	printf( "Allocating in one of %d positions\n", range );
+	// ¬озможный интервал дл€ изменени€ параметра (в единицах dwAllocationGranurality)
+	//const int range = ((char*)((long long int)info->lpMaximumApplicationAddress*15) - (char*)(info->lpMinimumApplicationAddress)) / info->dwAllocationGranularity;
+	//printf( "Allocating in one of %d positions\n", range );
+	
 	std::vector<LPVOID> addresses;
-	for( int i = 0;; ++i ) {
-		LPVOID addr = VirtualAlloc( (char*) info->lpMinimumApplicationAddress + (rand() % range) * info->dwPageSize, rand() % info->dwPageSize, MEM_RESERVE, PAGE_READWRITE );
+	for( long long int i = 0; i<10000; ++i ) {
+		DWORD allocationType;
+		switch( rand()%2 ) {
+			case 0:
+				allocationType = MEM_RESERVE;
+				break;
+			case 1:
+				allocationType = MEM_RESERVE | MEM_COMMIT;
+				break;
+		}
+		DWORD protect;
+		switch( rand() % 3 ) {
+			case 0:
+				protect = PAGE_READONLY;
+				break;
+			case 1:
+				protect = PAGE_READWRITE;
+				break;
+			case 2:
+				protect = PAGE_EXECUTE_READWRITE;
+				break;
+		}
+
+		DWORD guard;
+		switch( rand() % 2 ) {
+			case 0:
+				guard = PAGE_GUARD;
+				break;
+			case 1:
+				guard = 0;
+				break;
+		}
+		LPVOID addr = VirtualAlloc(
+			//(char*)info->lpMinimumApplicationAddress+1000*1024*1024 + (i) * info->dwAllocationGranularity,
+			(LPVOID)(200 * 1024 * 1024 +rand()*info->dwPageSize),
+			info->dwPageSize, allocationType, protect|guard);
 		if( addr == NULL ) {
-			DWORD err = GetLastError();
-			printf( "Allocated %d blocks, then error %d\n", i, err );
-			DescribeError( err );
-			break;
+			//DWORD err = GetLastError();
+			//std::wcout << "On" << i << " block error " << err << std::endl;
+			//DescribeError( err );
 		} else {
 			addresses.push_back( addr );
 		}
@@ -86,8 +128,9 @@ void TestVirtualRandomAlloc( LPSYSTEM_INFO info )
 		}
 	}
 	if( freedSuccessfully ) {
-		printf( "Freed %d blocks", addresses.size() );
+		printf( "Freed %d blocks\n", addresses.size() );
 	}
+	std::cin.get();
 
 }
 
@@ -96,7 +139,7 @@ void TestHandles()
 	HANDLE handle = CreateEvent( NULL, TRUE, TRUE, NULL );
 	std::vector<HANDLE> handles;
 	
-	for( int i = 0; ; ++i ) {
+	for( unsigned long long int i = 0; ; ++i ) {
 		HANDLE newHandle;
 		bool success = DuplicateHandle( GetCurrentProcess(),
 			handle,
@@ -116,7 +159,7 @@ void TestHandles()
 	}
 	std::cin.get();
 	bool closedSuccessfully = true;
-	for( int i = 0; i < handles.size(); ++i ) {
+	for( unsigned long long int i = 0; i < handles.size(); ++i ) {
 		bool success = CloseHandle( handles[i] );
 		if( success == false ) {
 			closedSuccessfully = false;
@@ -130,7 +173,7 @@ void TestHandles()
 		closedSuccessfully = false;
 	}
 	if( closedSuccessfully == true ) {
-		printf( "Closed %d handles", handles.size() );
+		printf( "Closed %d handles\n", handles.size() );
 	}
 	std::cin.get();
 }
@@ -190,15 +233,14 @@ void TestEmptyFunctionCallSize()
 	char dummy; // Ѕудет лежать в начале стека в данный момент времени.
 	stackBase = &dummy;
 
-	ptrdiff_t smallerAddr = stackSize();
-	std::wcout << "Stack bottom " << smallerAddr << std::endl;
-	ptrdiff_t biggerAddr = test();
-	std::wcout << "Stack top " << biggerAddr << std::endl;
-	std::wcout << "Function size " <<biggerAddr - smallerAddr << std::endl;
+	std::wcout << "Stack bottom " << stackSize() << std::endl;
+	std::wcout << "Stack top " << test() << std::endl;
+	std::wcout << "Function size " <<test() - stackSize() << std::endl;
 }
 
 ptrdiff_t test2()
 {
+	// Debug
 	// 0 - 0
 	// 1 - 12
 	// 4 - 12
@@ -206,7 +248,14 @@ ptrdiff_t test2()
 	// 8 - 28
 	// 9 - 32
 	// 10 - 32
-	char a[8];
+	// 12 - 32
+	// 14 - 36
+	// 16 - 36
+	// Release
+	// 1 - 4
+	// 2 - 4
+	// 5 - 16
+	volatile char a[5];
 	return stackSize();
 }
 
@@ -215,11 +264,35 @@ void TestNonEmptyFunctionCallSize()
 	char dummy; // Ѕудет лежать в начале стека в данный момент времени.
 	stackBase = &dummy;
 
-	ptrdiff_t smallerAddr = stackSize();
-	std::wcout << "Stack bottom " << smallerAddr << std::endl;
-	ptrdiff_t biggerAddr = test2();
-	std::wcout << "Stack top " << biggerAddr << std::endl;
-	std::wcout << "Function size " << biggerAddr - smallerAddr << std::endl;
+	std::wcout << "Stack bottom " << stackSize() << std::endl;
+	std::wcout << "Stack top " << test2() << std::endl;
+	std::wcout << "Function size " << test2() - stackSize() << std::endl;
+	std::wcout << "Function difference " << (test2() - stackSize()) - 8 <<std::endl;
+}
+
+void TestLongFilenames()
+{
+	std::wstring dirName = L"C:\\";
+	
+	for( int i = 1; i < 1000; ++i ) {
+		dirName += L'a';
+		//std::cout << (LPCTSTR)(dirName+'\\').c_str();
+		bool created = CreateDirectory( (LPCTSTR)(dirName+L'\\').c_str(), 0 );
+		if( !created ) {
+			DWORD err = GetLastError();
+			std::wcout << "Directory name length " << i+4 << ", error " << err << std::endl;
+			DescribeError( err );
+			break;
+		}
+
+		bool removed = RemoveDirectory( (LPCTSTR)(dirName+L'\\').c_str() );
+		if( !removed ) {
+			DWORD err = GetLastError();
+			std::wcout << "Remove error "<<i <<std::endl;
+			DescribeError( err );
+			break;
+		}
+	}
 }
 
 int main()
@@ -228,7 +301,7 @@ int main()
 	const DWORD size = 100 + 1;
 	WCHAR buffer[size];
 
-	printf( "Hello World" );
+	std::cout <<"Hello World";
 	SYSTEM_INFO info;
 	GetSystemInfo( &info );
 	printf( "Page size %d\nMin addr %d\nMax addr %d\nAllocation granularity %d\n\n", 
@@ -237,12 +310,14 @@ int main()
 		info.lpMaximumApplicationAddress, 
 		info.dwAllocationGranularity );
 	
-	//TestVirtualAlloc( &info );
-	TestVirtualRandomAlloc( &info );
+	//TestVirtualAlloc( &info, MEM_RESERVE, "MEM_RESERVE", PAGE_READWRITE, "PAGE_READWRITE" );
+	//TestVirtualAlloc( &info, MEM_RESERVE|MEM_COMMIT, "MEM_RESERVE|MEM_COMMIT", PAGE_READWRITE, "PAGE_READWRITE" );
+	//TestVirtualRandomAlloc( &info );
 	//TestHandles();
 	//TestGDI();
-	//TestEmptyFunctionCallSize();
-	//TestNonEmptyFunctionCallSize();
+	TestEmptyFunctionCallSize();
+	TestNonEmptyFunctionCallSize();
+	//TestLongFilenames();
 
 	std::cin.get();
 
