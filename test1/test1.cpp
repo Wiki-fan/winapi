@@ -61,7 +61,6 @@ void TestVirtualAlloc( LPSYSTEM_INFO info, DWORD allocationType, std::string all
 		std::wcout << "Freed " << addresses.size() <<"blocks" <<std::endl;
 	}
 	std::cin.get();
-
 }
 
 void TestVirtualRandomAlloc( LPSYSTEM_INFO info )
