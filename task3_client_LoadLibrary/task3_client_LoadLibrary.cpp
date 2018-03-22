@@ -37,14 +37,16 @@ int wmain( int argc, wchar_t* argv[] )
 
 	auto palindromeCount = PalindromeCounter( content.c_str() );
 
-	wchar_t buffer[1000];
+	WCHAR buffer[1000];
 	wsprintf( buffer, L"The text contains %d palindromes", palindromeCount );
 	int msgboxID = MessageBox(
 		NULL,
-		(LPCWSTR)buffer,
-		(LPCWSTR)L"PalindromeCount",
+		buffer,
+		L"PalindromeCount",
 		MB_OK
 	);
+
+	FreeLibrary( lib );
 	return 0;
 }
 
