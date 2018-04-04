@@ -5,16 +5,14 @@
 #include <Windows.h>
 #include <cassert>
 #include <string>
+#include <cstring>
 #include "Names.h"
-
-SYSTEM_INFO systemInfo;
 
 DWORD getNearestSpace( HANDLE file, LONG initialGuess )
 {
 	if( initialGuess == 0 ) {
 		return 0;
 	}
-	// https://msdn.microsoft.com/ru-ru/library/windows/desktop/aa365541(v=vs.85).aspx
 	if( SetFilePointer( file, initialGuess+sizeof(WCHAR), NULL, FILE_BEGIN ) == INVALID_SET_FILE_POINTER ) {
 		printf( "%d", GetLastError() );
 		assert( false );
@@ -22,7 +20,6 @@ DWORD getNearestSpace( HANDLE file, LONG initialGuess )
 	WCHAR c;
 	DWORD NumberOfBytesRead;
 	do {
-		// https://msdn.microsoft.com/en-us/library/windows/desktop/aa365467(v=vs.85).aspx
 		bool bResult = ReadFile( file, &c, sizeof( WCHAR ), &NumberOfBytesRead, NULL );
 		if( bResult == false ) {
 			printf( "%d", GetLastError() );
@@ -35,25 +32,22 @@ DWORD getNearestSpace( HANDLE file, LONG initialGuess )
 	return SetFilePointer( file, 0, NULL, FILE_CURRENT )-sizeof(WCHAR);
 }
 
-void FileMap( wchar_t* src_file_name, int* borders, int* sizes )
+int FileMap( wchar_t* src_file_name, int* borders, int* sizes )
 {
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx
 	HANDLE file = CreateFileW(src_file_name,GENERIC_READ,FILE_SHARE_READ,NULL,
-		OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL );
+		OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,NULL );
 	if( file == INVALID_HANDLE_VALUE ) {
 		printf( "%d", GetLastError() );
 		assert( false );
 	}
 
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa366537(v=vs.85).aspx
-	HANDLE mapping = CreateFileMappingW(file,NULL,PAGE_READONLY,
+	HANDLE mapping = CreateFileMappingW(file, NULL, PAGE_READONLY,
 		0, 0, INPUT_FILE_MAPPING_NAME );
 	if( mapping == NULL ) {
 		printf( "%d", GetLastError() );
 		assert( false );
 	}
 
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/aa366761(v=vs.85).aspx
 	LPVOID addr = MapViewOfFile( mapping, FILE_MAP_READ, 0, 0, 0 );
 	if( addr == NULL ) {
 		printf( "%d", GetLastError() );
@@ -61,9 +55,6 @@ void FileMap( wchar_t* src_file_name, int* borders, int* sizes )
 	}
 	WCHAR* text = (WCHAR*)addr+1;
 
-	wprintf( L"%c %c %c\n", text[0], text[1], text[2] );
-
-	// https://msdn.microsoft.com/ru-ru/library/windows/desktop/aa364955(v=vs.85).aspx
 	int fileSize = GetFileSize( file, NULL );
 
 	for( int i = 0; i < N_PARTS; ++i ) {
@@ -71,24 +62,40 @@ void FileMap( wchar_t* src_file_name, int* borders, int* sizes )
 		borders[i] = getNearestSpace( file, borders[i] );
 	}
 
-	printf( "%d %d %d %d\n", borders[0], borders[1], borders[2], borders[3] );
+	//printf( "%d %d %d %d\n", borders[0], borders[1], borders[2], borders[3] );
 	// do deeds
 	for( int i = 0; i < N_PARTS - 1; ++i ) {
 		sizes[i] = borders[i + 1] - borders[i];
 	}
 	sizes[N_PARTS - 1] = fileSize - borders[N_PARTS - 1];
-	printf( "%d %d %d %d\n", sizes[0], sizes[1], sizes[2], sizes[3] );
+	//printf( "%d %d %d %d\n", sizes[0], sizes[1], sizes[2], sizes[3] );
 
-	/*for( int i = 0; i < N_PARTS; ++i )
-	{
-		WCHAR* text = (WCHAR*)addr+1;
+	return fileSize;
+}
 
-		wprintf( L"::" );
-		for( int j = 0; j < sizes[i] / sizeof( WCHAR ); ++j ) {
-			wprintf( L"%c", text[borders[i]/sizeof(WCHAR) + j] );
+void processResultFiles( HANDLE* mappings, LPWSTR target_name, PROCESS_INFORMATION* procInfo, int size )
+{
+	FILE* f = _wfopen( target_name, L"w" );
+
+	for( int i = 0; i < N_PARTS; ++i ) {
+		/*HANDLE mapping = OpenFileMappingW(
+			FILE_MAP_READ,
+			FALSE,
+			(OUTPUT_FILE_MAPPING_NAME+std::to_wstring(procInfo[i].dwProcessId)).c_str());
+		*/
+		HANDLE mapping = mappings[i];
+
+		LPVOID addr = MapViewOfFile( mapping, FILE_MAP_READ, 0, 0, 0 );
+		if( addr == NULL ) {
+			printf( "%d", GetLastError() );
+			assert( false );
 		}
-		wprintf( L"\n" );
-	}*/
+		WCHAR* text = (WCHAR*)addr;
+		
+		fwprintf( f, L"%s ", text );
+		//wprintf( L"out %s\n", text );
+	}
+	fclose( f );
 }
 
 /*void FreeFile()
@@ -101,7 +108,6 @@ void FileMap( wchar_t* src_file_name, int* borders, int* sizes )
 void createEventsForWorkers( HANDLE* events, LPCWSTR name, bool manualReset, PROCESS_INFORMATION* procInfo )
 {
 	for( int i = 0; i < N_PARTS; ++i ) {
-		// https://msdn.microsoft.com/en-us/library/windows/desktop/ms682396(v=vs.85).aspx
 		events[i] = CreateEvent(
 			NULL,
 			manualReset, false,
@@ -142,9 +148,8 @@ int wmain( int argc, wchar_t* argv[] )
 
 	int borders[N_PARTS];
 	int sizes[N_PARTS];
-	FileMap( src_file_name, borders, sizes );
+	int fileSize = FileMap( src_file_name, borders, sizes );
 
-	// https://msdn.microsoft.com/ru-ru/library/windows/desktop/ms682425(v=vs.85).aspx
 	STARTUPINFO startupInfo[N_PARTS];
 	ZeroMemory( startupInfo, N_PARTS * sizeof( STARTUPINFO ) );
 	PROCESS_INFORMATION procInfo[N_PARTS];
@@ -174,38 +179,63 @@ int wmain( int argc, wchar_t* argv[] )
 	}
 
 	HANDLE taskPreparedEvents[N_PARTS];
-	createEventsForWorkers( taskPreparedEvents, L"TaskPrepared", false, procInfo );
+	createEventsForWorkers( taskPreparedEvents, TASK_PREPARED, false, procInfo );
 	HANDLE taskDoneEvents[N_PARTS];
-	createEventsForWorkers( taskDoneEvents, L"TaskDone", false, procInfo );
+	createEventsForWorkers( taskDoneEvents, TASK_DONE, false, procInfo );
 
 	HANDLE endOfWork = CreateEvent(
 		NULL,
 		true, false,
-		(std::wstring( L"EndOfWork" )).c_str()
+		(std::wstring( END_OF_WORK )).c_str()
 	);
 	if( endOfWork == NULL ) {
 		printf( "%d", GetLastError() );
 		assert( false );
 	}
 
+	HANDLE mappings[N_PARTS];
+	for( int i = 0; i < N_PARTS; ++i ) {
+		/*HANDLE mapping = OpenFileMappingW(
+		FILE_MAP_READ,
+		FALSE,
+		(OUTPUT_FILE_MAPPING_NAME+std::to_wstring(procInfo[i].dwProcessId)).c_str());
+		*/
+		HANDLE mapping = CreateFileMappingW(
+			INVALID_HANDLE_VALUE,    // use paging file
+			NULL,                    // default security
+			PAGE_READWRITE,          // read/write access
+			0,                       // maximum object size (high-order DWORD)
+			fileSize,                // maximum object size (low-order DWORD)
+			(OUTPUT_FILE_MAPPING_NAME + std::to_wstring( procInfo[i].dwProcessId )).c_str() );
+		if( mapping == NULL ) {
+			printf( "%d", GetLastError() );
+			assert( false );
+		}
+		mappings[i] = mapping;
+	}
+
 	SetEventsForWorkers( taskPreparedEvents );
 
-	if( WaitForMultipleObjects( N_PARTS, taskDoneEvents, true, 0 ) == WAIT_FAILED ) {
+	Sleep( 100 );
+	if( WaitForMultipleObjects( N_PARTS, taskDoneEvents, true, INFINITY ) == WAIT_FAILED ) {
 		printf( "%d", GetLastError() );
+		assert( false );
 	}
 	
+	processResultFiles( mappings, target_name, procInfo, fileSize );
+
 	if( !SetEvent(endOfWork) ) {
 		printf( "%d", GetLastError() );
 		assert( false );
 	}
 
-	/*CloseEventsForWorkers( taskPreparedEvents );
-	CloseEventsForWorkers( taskDoneEvents );*/
-
-	if( WaitForMultipleObjects( N_PARTS, handles, true, 0 ) == WAIT_FAILED ) {
+	if( WaitForMultipleObjects( N_PARTS, handles, true, INFINITY ) == WAIT_FAILED ) {
 		printf( "%d", GetLastError() );
+		assert( false );
 	}
 
+	CloseEventsForWorkers( taskPreparedEvents );
+	CloseEventsForWorkers( taskDoneEvents );
 	for( int i = 0; i < N_PARTS; ++i ) {
 		CloseHandle( procInfo[i].hProcess );
 		CloseHandle( procInfo[i].hThread );
@@ -215,4 +245,3 @@ int wmain( int argc, wchar_t* argv[] )
 	scanf( "" );
 	return 0;
 }
-
