@@ -9,6 +9,7 @@
 #include <locale>
 #include <codecvt>
 #include <Windows.h>
+#include "EventManager.h"
 #include "Names.h"
 
 const int END_OF_WORK_INDEX = 1;
@@ -20,10 +21,10 @@ std::wstring getWord( WCHAR* text, int& position, int size )
 	for( int i = 0; i < size / sizeof( WCHAR ); ++i ) {
 		WCHAR c = text[position / sizeof( WCHAR ) + i];
 		if( iswspace( c ) ) {
-			position = position + i*sizeof(WCHAR);
+			position = position + i * sizeof( WCHAR );
 			return s;
 		} else {
-			s.append(1, c );
+			s.append( 1, c );
 		}
 	}
 	position = position + size;
@@ -31,20 +32,13 @@ std::wstring getWord( WCHAR* text, int& position, int size )
 }
 
 class OutputFileWriter {
-	
+
 public:
 	HANDLE outputMapping;
 	LPWSTR outputAddr;
 	int pos;
-	OutputFileWriter(HANDLE fileHandle, int size)
+	OutputFileWriter( HANDLE fileHandle, int size )
 	{
-		/*outputMapping = CreateFileMappingW(
-			fileHandle,    // use paging file
-			NULL,                    // default security
-			PAGE_READWRITE,          // read/write access
-			0,                       // maximum object size (high-order DWORD)
-			size,                // maximum object size (low-order DWORD)
-			(OUTPUT_FILE_MAPPING_NAME + std::to_wstring( GetCurrentProcessId() )).c_str() );*/
 		outputMapping = OpenFileMappingW(
 			FILE_MAP_ALL_ACCESS,
 			FALSE,
@@ -78,26 +72,29 @@ public:
 
 	~OutputFileWriter()
 	{
-		//CloseHandle( outputMapping );
+		CloseHandle( outputMapping );
+		UnmapViewOfFile( outputAddr );
 	}
 
 };
 
-void processFile(int position, int size, std::unordered_set<std::wstring>& stopWords )
+void processFile( int position, int size, std::unordered_set<std::wstring>& stopWords )
 {
 	HANDLE mapping = OpenFileMapping(
 		FILE_MAP_ALL_ACCESS,
 		FALSE,
 		INPUT_FILE_MAPPING_NAME );
 
-	LPVOID addr = MapViewOfFile( mapping, FILE_MAP_READ, 0, 0, 0);
+	LPVOID addr = MapViewOfFile( mapping, FILE_MAP_READ, 0, 0, 0 );
 	if( addr == NULL ) {
 		printf( "%d", GetLastError() );
 		assert( false );
 	}
 	WCHAR* text = (WCHAR*)addr + 1;
 
-	OutputFileWriter ofw( INVALID_HANDLE_VALUE, size);
+	wprintf( L"arrived %.*s\n", size / sizeof( WCHAR ), text + position / sizeof( WCHAR ) );
+
+	OutputFileWriter ofw( INVALID_HANDLE_VALUE, size );
 
 	std::wstring s;
 	s.clear();
@@ -105,7 +102,7 @@ void processFile(int position, int size, std::unordered_set<std::wstring>& stopW
 		WCHAR c = text[position / sizeof( WCHAR ) + i];
 		if( iswspace( c ) ) {
 			if( !s.empty() ) {
-				if( stopWords.find(s) == stopWords.end() ) { 
+				if( stopWords.find( s ) == stopWords.end() ) {
 					ofw.append( s );
 				}
 			}
@@ -114,20 +111,14 @@ void processFile(int position, int size, std::unordered_set<std::wstring>& stopW
 			s.append( 1, c );
 		}
 	}
+	if( !s.empty() ) {
+		if( stopWords.find( s ) == stopWords.end() ) {
+			ofw.append( s );
+		}
+	}
 	ofw.finalize();
 
-	//wprintf( L"str %s\n", ofw.outputAddr );
-}
-
-HANDLE openEvent( std::wstring name )
-{
-	HANDLE event;
-	event = OpenEvent( EVENT_ALL_ACCESS, false, name.c_str() );
-	if( event == NULL ) {
-		printf( "%d", GetLastError() );
-		assert( false );
-	}
-	return event;
+	wprintf( L"str %s\n", ofw.outputAddr );
 }
 
 int wmain( int argc, wchar_t* argv[] )
@@ -137,7 +128,7 @@ int wmain( int argc, wchar_t* argv[] )
 	int size = std::stoi( argv[2] );
 
 	std::unordered_set<std::wstring> stopWords;
-	std::wifstream ifs( std::wstring(target_words), std::ios_base::in );
+	std::wifstream ifs( std::wstring( target_words ), std::ios_base::in );
 	ifs.imbue( std::locale( ifs.getloc(), new std::codecvt_utf16<wchar_t, 0x10ffff, std::consume_header> ) );
 	std::wstring word;
 	while( ifs >> word ) {
@@ -146,31 +137,31 @@ int wmain( int argc, wchar_t* argv[] )
 
 	wprintf( L"I'm worker %s, %d, %d\n", target_words, position, size );
 
+	EventManager eventMgr;
 	HANDLE events[2];
-	events[TASK_PREPARED_INDEX] = openEvent( std::wstring( TASK_PREPARED ) + std::to_wstring( GetCurrentProcessId() ) );
-	events[END_OF_WORK_INDEX] = openEvent( std::wstring( END_OF_WORK ) );
-	HANDLE taskDoneEvent = openEvent( std::wstring( TASK_DONE ) + std::to_wstring( GetCurrentProcessId() ) );
-	
+	/*events[TASK_PREPARED_INDEX] = eventMgr.createEvent( std::wstring( TASK_PREPARED ) + std::to_wstring( GetCurrentProcessId() ), false );
+	events[END_OF_WORK_INDEX] = eventMgr.createEvent( std::wstring( END_OF_WORK ), true );
+	HANDLE taskDoneEvent = eventMgr.createEvent( std::wstring( TASK_DONE ) + std::to_wstring( GetCurrentProcessId() ), false );*/
+	events[TASK_PREPARED_INDEX] = eventMgr.openEvent( std::wstring( TASK_PREPARED ) + std::to_wstring( GetCurrentProcessId() ));
+	events[END_OF_WORK_INDEX] = eventMgr.openEvent( std::wstring( END_OF_WORK ));
+	HANDLE taskDoneEvent = eventMgr.openEvent( std::wstring( TASK_DONE ) + std::to_wstring( GetCurrentProcessId() ));
+
 	bool working = true;
 	while( working ) {
-		DWORD dwWaitResult = WaitForMultipleObjects(
-			2, events, false, INFINITE );
+		DWORD dwWaitResult = WaitForMultipleObjects(2, events, false, INFINITE );
 
 		switch( dwWaitResult ) {
 			case WAIT_OBJECT_0 + TASK_PREPARED_INDEX:
-				//printf( "Thread %d reading from buffer\n", GetCurrentThreadId() );
-				processFile(position, size, stopWords);
-				if( !SetEvent( taskDoneEvent ) ) {
-					printf( "%d", GetLastError() );
-					assert( false );
-				}
+				printf( "Thread %d processing\n", GetCurrentThreadId() );
+				processFile( position, size, stopWords );
+				eventMgr.setEvent( taskDoneEvent );
 				break;
 			case WAIT_OBJECT_0 + END_OF_WORK_INDEX:
-				//printf( "Thread %d stopping work\n", GetCurrentThreadId() );
+				printf( "Thread %d stopping work\n", GetCurrentThreadId() );
 				working = false;
 				break;
 			default:
-				//printf( "Wait error (%d)\n", GetLastError() );
+				printf( "Wait error (%d)\n", GetLastError() );
 				return 0;
 		}
 	}
