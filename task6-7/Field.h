@@ -21,34 +21,38 @@ public:
 		field = field_;
 		x = 0;
 		y = 0;
-		dx = 5;
-		dy = 2;
+		dx = 3;
+		dy = 3;
 	}
 
-	void draw(HWND handle)
+	void draw(HDC hDC)
 	{
-		PAINTSTRUCT ps;
-		HDC hDC = BeginPaint( handle, &ps );
-
-
 		SelectObject( hDC, GetStockObject( GRAY_BRUSH ) );
 		if( !Ellipse( hDC, x, y, x + w, y + h ) ) {
 			MessageBox( NULL, ERRMSG( "Ellipse draw failed", GetLastError() ), NULL, MB_OK );
 			exit( 1 );
 		}
-		EndPaint( handle, &ps );
-		DeleteObject( hDC );
 	}
 
 	void step()
 	{
 		x += dx;
 		y += dy;
-		if(x <= 0 || x + w >= field->x) {
+		if(x <= 0 ) {
 			dx *= -1;
+			x = 0;
 		}
-		if( y <= 0 || y + h >= field->y ) {
+		if( x + w >= field->x ) {
+			dx *= -1;
+			x = field->x - w;
+		}
+		if( y <= 0 ) {
 			dy *= -1;
+			y = 0;
+		}
+		if( y + h >= field->y ) {
+			dy *= -1;
+			y = field->y - h;
 		}
 	}
 };
