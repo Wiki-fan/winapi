@@ -11,8 +11,10 @@ struct InputController {
 	Direction movement = Direction::None;
 	Figure* figure;
 	CEllipseWindow* window;
+	bool fast = false;
 
-	void processKey( DWORD keyCode );
+	void processKeyUp( DWORD keyCode );
+	void processKeyDown( DWORD keyCode );
 
 	void process()
 	{

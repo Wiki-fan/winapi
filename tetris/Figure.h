@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <set>
 #include "common.h"
 
 #include <Windows.h>
@@ -9,6 +10,7 @@
 const std::vector<COLORREF> allowedColors = { RGB( 255, 0, 0 ), RGB( 0 , 255, 0 ), RGB( 0, 0, 255 ), RGB( 255, 255, 0 ), RGB( 0, 255, 255 ), RGB( 255, 0, 255 ) };
 
 struct Figure {
+	bool gameover = false;
 	std::vector<Cell> cells;
 	Field& field;
 	Point pos = { 0,0 }; // center position
@@ -24,6 +26,13 @@ struct Figure {
 			cell.color = color;
 		}
 		pos = Point( field.N / 2, 1 );
+		for( auto& cell : cells ) {
+			Point newP = Point( pos.x + cell.pos.x, pos.y + cell.pos.y );
+
+			if( field.cellMatrix[newP.y][newP.x].isActive() ) {
+				gameover = true;
+			}
+		}
 	}
 
 	void draw( HDC hDC )
@@ -53,12 +62,48 @@ struct Figure {
 		return true;
 	}
 
+	void Rotate()
+	{
+		for( auto& cell : cells ) {
+			Point newP = Point( pos.x + (-cell.pos.y), pos.y + (cell.pos.x) );
+
+			if( newP.x < 0 || newP.x >= field.N || newP.y < 0 || newP.y >= field.M || field.cellMatrix[newP.y][newP.x].isActive() ) {
+				return;
+			}
+		}
+		for( auto& cell : cells ) {
+			//std::swap( cell.pos.x, cell.pos.y );
+			Point newPos( -cell.pos.y, cell.pos.x );
+			cell.pos = newPos;
+		}
+	}
+
 	void Freeze()
 	{
+		std::set<int> updatedLines;
 		for( auto& cell : cells ) {
 			Point p = Point( pos.x + cell.pos.x, pos.y + cell.pos.y ); 
 			cell.pos = p;
 			field.cellMatrix[p.y][p.x] = cell;
+			updatedLines.insert( p.y );
+		}
+
+		for( auto& y : updatedLines ) {
+			bool allFilled = true;
+			for( auto& cell : field.cellMatrix[y] ) {
+				if( !cell.isActive() ) {
+					allFilled = false;
+					break;
+				}
+			}
+			if( allFilled ) {
+				for( int i = y; i > 0; --i ) {
+					std::swap( field.cellMatrix[i], field.cellMatrix[i - 1] );
+				}
+				for( int i = 0; i < field.N; ++i ) {
+					field.cellMatrix[0][i].setInactive();
+				}
+			}
 		}
 	}
 

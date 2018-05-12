@@ -38,14 +38,14 @@ public:
 		if( x <= 0 ) {
 			x = 0;
 		}
-		if( x + w >= field->x ) {
-			x = field->x - w;
+		if( x + w >= field->width ) {
+			x = field->width - w;
 		}
 		if( y <= 0 ) {
 			y = 0;
 		}
-		if( y + h >= field->y ) {
-			y = field->y - h;
+		if( y + h >= field->height ) {
+			y = field->height - h;
 		}
 	}
 
@@ -57,17 +57,17 @@ public:
 			dx *= -1;
 			x = 0;
 		}
-		if( x + w >= field->x ) {
+		if( x + w >= field->width ) {
 			dx *= -1;
-			x = field->x - w;
+			x = field->width - w;
 		}
 		if( y <= 0 ) {
 			dy *= -1;
 			y = 0;
 		}
-		if( y + h >= field->y ) {
+		if( y + h >= field->height ) {
 			dy *= -1;
-			y = field->y - h;
+			y = field->height - h;
 		}
 	}
 };

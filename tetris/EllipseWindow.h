@@ -8,7 +8,7 @@
 #include "InputController.h"
 
 const int IDT_TIMER1 = 1;
-const int TIMEOUT = 200;
+const int TIMEOUT = 500;
 
 extern HINSTANCE hInstance;
 
@@ -18,10 +18,13 @@ class CEllipseWindow {
 public:
 	CEllipseWindow() : ellipse(  100, 150 ), field(10, 20), figure(field), inputController(this)
 	{
+		font = CreateFont( 36, 20, -300, 0, FW_DONTCARE, FALSE, TRUE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS,
+			CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, TEXT( "Times New Roman" ) );
 	}
 
 	~CEllipseWindow()
 	{
+		DeleteObject( font );
 		CloseWindow( handle );
 	}
 
@@ -70,9 +73,7 @@ public:
 			hInstance,
 			static_cast<LPVOID>(this) );
 		if( !handle ) {
-			MessageBox( NULL, ERRMSG( "Window not created", GetLastError() ), NULL, MB_OK );
-			getchar();
-			exit( 2 );
+			HALT( "Window not created" );
 		}
 	}
 
@@ -93,6 +94,13 @@ public:
 		}
 	}
 
+	void SetTimerTimeout(UINT elapse)
+	{
+		SetTimer( handle,
+			IDT_TIMER1,
+			elapse,
+			static_cast<TIMERPROC>(NULL) );
+	}
 protected:
 	void OnDestroy()
 	{
@@ -101,10 +109,7 @@ protected:
 
 	void OnCreate()
 	{
-		SetTimer( handle,
-			IDT_TIMER1,
-			TIMEOUT,
-			static_cast<TIMERPROC>(NULL) );
+		SetTimerTimeout( TIMEOUT );
 		figure.Create();
 		inputController.figure = &figure;
 	}
@@ -124,7 +129,9 @@ protected:
 	{
 		inputController.process();
 		ellipse.step(&field);
-		if( !figure.Move( Point( 0, 1 ) ) ) {
+		if( figure.gameover ) {
+			KillTimer( handle, IDT_TIMER1 );
+		} else if( !figure.Move( Point( 0, 1 ) ) ) {
 			figure.Create();
 		}
 		Redraw();
@@ -142,9 +149,14 @@ protected:
 
 	void DrawScene(HDC hdc)
 	{
+		SelectObject( hdc, font );
 		field.draw( hdc );
 		ellipse.draw( hdc, true );
 		figure.draw(hdc);
+		if( figure.gameover ) {
+			RECT rect = { 0, 0, field.width, field.height };
+			DrawText( hdc, "You Lose", -1, &rect, DT_CENTER | DT_VCENTER );
+		}
 	}
 
 	void OnPaint()
@@ -219,7 +231,10 @@ private:
 			case WM_ERASEBKGND:
 				return (LRESULT)1;
 			case WM_KEYDOWN:
-				window->inputController.processKey( wParam );
+				window->inputController.processKeyDown( wParam );
+				break;
+			case WM_KEYUP:
+				window->inputController.processKeyUp( wParam );
 				break;
 			default:
 				return DefWindowProc( handle, message, wParam, lParam );
@@ -231,4 +246,5 @@ private:
 	EllipseObject ellipse;
 	Figure figure;
 	InputController inputController;
+	HFONT font;
 };

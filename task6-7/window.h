@@ -125,8 +125,8 @@ protected:
 			MessageBox( NULL, ERRMSG( "Client rect get failed", GetLastError() ), NULL, MB_OK );
 			exit( 1 );
 		}
-		field.x = rect.right;
-		field.y = rect.bottom;
+		field.width = rect.right;
+		field.height = rect.bottom;
 	}
 
 	void OnPaint() {
@@ -142,8 +142,8 @@ protected:
 		GetClientRect( handle, &rc );
 		hdcMem = CreateCompatibleDC( hDC );
 		hbmMem = CreateCompatibleBitmap( ps.hdc,
-			field.x,
-			field.y);
+			field.width,
+			field.height);
 		// Select the bitmap into the off-screen DC.
 		hbmOld = static_cast<HBITMAP>(SelectObject( hdcMem, hbmMem ));
 
@@ -158,7 +158,7 @@ protected:
 		// Blt the changes to the screen DC.
 		BitBlt( ps.hdc,
 			0, 0,
-			field.x, field.y,
+			field.width, field.height,
 			hdcMem,
 			0, 0,
 			SRCCOPY );

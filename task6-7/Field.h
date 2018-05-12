@@ -3,6 +3,6 @@
 
 class Field {
 public:
-	int x, y;
+	int width, height;
 
 };

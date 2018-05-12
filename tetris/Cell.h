@@ -18,6 +18,7 @@ struct Cell {
 	}
 
 	const void draw( HDC hDC, Field& field, Point center );
+	const void drawAt( HDC hDC, Field& field, Point pos );
 
 	COLORREF color;
 	Point pos;

@@ -40,10 +40,10 @@ public:
 			LineTo( hDC, x, height);
 		}
 		
-		for( auto& row : cellMatrix ) {
-			for( auto& cell : row ) {
-				if( cell.isActive() ) {
-					cell.draw( hDC, *this, Point( 0, 0 ) );
+		for( int i = 0; i < M; ++i) {
+			for( int j = 0; j < N; ++j) {
+				if( cellMatrix[i][j].isActive() ) {
+					cellMatrix[i][j].drawAt( hDC, *this, Point( j, i )) ;
 				}
 			}
 		}
