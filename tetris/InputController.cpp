@@ -3,6 +3,12 @@
 
 void InputController::processKeyDown( DWORD keyCode )
 {
+	if( window->gameover ) {
+		window->field.Init();
+		window->OnCreate(); 
+		window->gameover = false;
+		return;
+	}
 	switch( keyCode ) {
 		case VK_LEFT:
 			figure->Move( Point(-1, 0) );
@@ -15,10 +21,9 @@ void InputController::processKeyDown( DWORD keyCode )
 			break;
 		case VK_DOWN:
 			if( !fast ) {
-				window->SetTimerTimeout( 100 );
+				window->SetTimerTimeout( FAST_TIMEOUT );
 				fast = true;
 			}
-			//figure->Move( Point( 0, 1 ) );
 			break;
 	}
 	window->Redraw();
@@ -26,6 +31,9 @@ void InputController::processKeyDown( DWORD keyCode )
 
 void InputController::processKeyUp( DWORD keyCode )
 {
+	if( window->gameover ) {
+		return;
+	}
 	switch( keyCode ) {
 		case VK_DOWN:
 			window->SetTimerTimeout( 500 );

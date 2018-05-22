@@ -9,18 +9,25 @@
 
 const std::vector<COLORREF> allowedColors = { RGB( 255, 0, 0 ), RGB( 0 , 255, 0 ), RGB( 0, 0, 255 ), RGB( 255, 255, 0 ), RGB( 0, 255, 255 ), RGB( 255, 0, 255 ) };
 
-struct Figure {
-	bool gameover = false;
+struct FigureShape {
+	char name;
 	std::vector<Cell> cells;
+};
+
+struct Figure {
+	std::vector<Cell> cells;
+	char name;
 	Field& field;
 	Point pos = { 0,0 }; // center position
 	COLORREF color;
 	Figure(Field& field_) : field(field_) {
 	}
-	void Create()
+
+	bool Create()
 	{
 		int i = rand() % allowedFigures.size();
-		cells = allowedFigures[i];
+		cells = allowedFigures[i].cells;
+		name = allowedFigures[i].name;
 		color = allowedColors[rand() % allowedColors.size()];
 		for( auto& cell : cells ) {
 			cell.color = color;
@@ -30,9 +37,10 @@ struct Figure {
 			Point newP = Point( pos.x + cell.pos.x, pos.y + cell.pos.y );
 
 			if( field.cellMatrix[newP.y][newP.x].isActive() ) {
-				gameover = true;
+				return false;
 			}
 		}
+		return true;
 	}
 
 	void draw( HDC hDC )
@@ -64,6 +72,9 @@ struct Figure {
 
 	void Rotate()
 	{
+		if( name == 'O' ) {
+			return;
+		}
 		for( auto& cell : cells ) {
 			Point newP = Point( pos.x + (-cell.pos.y), pos.y + (cell.pos.x) );
 
@@ -72,7 +83,6 @@ struct Figure {
 			}
 		}
 		for( auto& cell : cells ) {
-			//std::swap( cell.pos.x, cell.pos.y );
 			Point newPos( -cell.pos.y, cell.pos.x );
 			cell.pos = newPos;
 		}
@@ -107,6 +117,5 @@ struct Figure {
 		}
 	}
 
-	const static std::vector<std::vector<Cell>> allowedFigures;
+	const static std::vector<FigureShape> allowedFigures;
 };
-

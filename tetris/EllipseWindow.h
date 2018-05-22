@@ -8,7 +8,9 @@
 #include "InputController.h"
 
 const int IDT_TIMER1 = 1;
-const int TIMEOUT = 500;
+extern int NORMAL_TIMEOUT;
+extern int FAST_TIMEOUT;
+extern int GAMEOVER_TIMEOUT;
 
 extern HINSTANCE hInstance;
 
@@ -16,15 +18,14 @@ extern const char* WINDOWCLASSNAME;
 
 class CEllipseWindow {
 public:
-	CEllipseWindow() : ellipse(  100, 150 ), field(10, 20), figure(field), inputController(this)
+	CEllipseWindow() : ellipse(  100, 150, std::string("GAME\nOVER") ), field(10, 20), figure(field), inputController(this)
 	{
-		font = CreateFont( 36, 20, -300, 0, FW_DONTCARE, FALSE, TRUE, FALSE, DEFAULT_CHARSET, OUT_OUTLINE_PRECIS,
-			CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, VARIABLE_PITCH, TEXT( "Times New Roman" ) );
+		
 	}
 
 	~CEllipseWindow()
 	{
-		DeleteObject( font );
+		KillTimer( handle, IDT_TIMER1 );
 		CloseWindow( handle );
 	}
 
@@ -58,7 +59,7 @@ public:
 	}
 
 	// Создать экземпляр окна
-	bool Create()
+	void Create()
 	{
 		handle = CreateWindowA(
 			WINDOWCLASSNAME,     // name of window class 
@@ -66,8 +67,8 @@ public:
 			WS_OVERLAPPEDWINDOW, // top-level window 
 			CW_USEDEFAULT,       // default horizontal position
 			CW_USEDEFAULT,       // default vertical position
-			640,       // width 
-			480,       // height 
+			field.N*30,       // width 
+			field.M*30,       // height 
 			static_cast<HWND>(NULL),
 			static_cast<HMENU>(NULL),
 			hInstance,
@@ -84,8 +85,7 @@ public:
 
 		ShowWindow( handle, cmdShow );
 		if( UpdateWindow( handle ) == 0 ) {
-			MessageBox( NULL, ERRMSG( "UpdateWindow failed ", GetLastError() ), NULL, MB_OK );
-			exit( 1 );
+			HALT( "UpdateWindow failed" );
 		}
 
 		while( GetMessage( &Msg, NULL, 0, 0 ) ) {
@@ -109,9 +109,10 @@ protected:
 
 	void OnCreate()
 	{
-		SetTimerTimeout( TIMEOUT );
+		field.Init(); 
 		figure.Create();
 		inputController.figure = &figure;
+		SetTimerTimeout( NORMAL_TIMEOUT );
 	}
 
 	void OnNCCreate( const HWND handle_ )
@@ -127,12 +128,13 @@ protected:
 
 	void OnTimer()
 	{
-		inputController.process();
-		ellipse.step(&field);
-		if( figure.gameover ) {
-			KillTimer( handle, IDT_TIMER1 );
+		if( gameover ) {
+			ellipse.step( &field );
 		} else if( !figure.Move( Point( 0, 1 ) ) ) {
-			figure.Create();
+			if( !figure.Create() ) {
+				gameover = true;
+				SetTimerTimeout( GAMEOVER_TIMEOUT );
+			}
 		}
 		Redraw();
 	}
@@ -149,13 +151,11 @@ protected:
 
 	void DrawScene(HDC hdc)
 	{
-		SelectObject( hdc, font );
 		field.draw( hdc );
-		ellipse.draw( hdc, true );
+		
 		figure.draw(hdc);
-		if( figure.gameover ) {
-			RECT rect = { 0, 0, field.width, field.height };
-			DrawText( hdc, "You Lose", -1, &rect, DT_CENTER | DT_VCENTER );
+		if( gameover ) {
+			ellipse.draw( hdc);
 		}
 	}
 
@@ -246,5 +246,7 @@ private:
 	EllipseObject ellipse;
 	Figure figure;
 	InputController inputController;
-	HFONT font;
+	bool gameover = false;
+
+	friend class InputController;
 };

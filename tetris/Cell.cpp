@@ -12,10 +12,10 @@ const void Cell::drawAt( HDC hDC, Field & field, Point pos )
 	brush = CreateSolidBrush( color );
 	SelectObject( hDC, brush );
 
-	int x = static_cast<int>(static_cast<double>(field.width) / field.N*(pos.x));
-	int y = static_cast<int>(static_cast<double>(field.height) / field.M*(pos.y));
-	int tileWidth = static_cast<int>(static_cast<double>(field.width) / field.N);
-	int tileHeight = static_cast<int>(static_cast<double>(field.height) / field.M);
+	int x = round(static_cast<double>(field.width)*(pos.x) / field.N);
+	int y = round(static_cast<double>(field.height)*(pos.y) / field.M);
+	int tileWidth = round(static_cast<double>(field.width) / field.N)+1;
+	int tileHeight = round(static_cast<double>(field.height) / field.M)+1;
 	RECT rect = { x, y, x + tileWidth, y + tileHeight };
 	if( !::FillRect( hDC, &rect, brush ) ) {
 		HALT( "Rect draw failed" );
