@@ -36,7 +36,7 @@ void InputController::processKeyUp( DWORD keyCode )
 	}
 	switch( keyCode ) {
 		case VK_DOWN:
-			window->SetTimerTimeout( 500 );
+			window->SetTimerTimeout( NORMAL_TIMEOUT );
 			fast = false;
 			break;
 	}

@@ -11,16 +11,19 @@ const std::vector<COLORREF> allowedColors = { RGB( 255, 0, 0 ), RGB( 0 , 255, 0 
 
 struct FigureShape {
 	char name;
+	bool isRotatable;
 	std::vector<Cell> cells;
 };
 
 struct Figure {
 	std::vector<Cell> cells;
 	char name;
+	bool isRotatable;
 	Field& field;
 	Point pos = { 0,0 }; // center position
 	COLORREF color;
-	Figure(Field& field_) : field(field_) {
+	Figure( Field& field_ ) : field( field_ )
+	{
 	}
 
 	bool Create()
@@ -28,6 +31,7 @@ struct Figure {
 		int i = rand() % allowedFigures.size();
 		cells = allowedFigures[i].cells;
 		name = allowedFigures[i].name;
+		isRotatable = allowedFigures[i].isRotatable;
 		color = allowedColors[rand() % allowedColors.size()];
 		for( auto& cell : cells ) {
 			cell.color = color;
@@ -46,14 +50,14 @@ struct Figure {
 	void draw( HDC hDC )
 	{
 		for( auto& cell : cells ) {
-			cell.draw( hDC, field, pos);
+			cell.draw( hDC, field, pos );
 		}
 	}
 
 	bool Move( Point d )
 	{
 		for( auto& cell : cells ) {
-			Point newP = Point(pos.x + cell.pos.x + d.x, pos.y + cell.pos.y + d.y);
+			Point newP = Point( pos.x + cell.pos.x + d.x, pos.y + cell.pos.y + d.y );
 			if( d.y == 0 ) {
 				if( newP.x < 0 || newP.x >= field.N || field.cellMatrix[newP.y][newP.x].isActive() ) {
 					return true;
@@ -72,7 +76,7 @@ struct Figure {
 
 	void Rotate()
 	{
-		if( name == 'O' ) {
+		if( !isRotatable ) {
 			return;
 		}
 		for( auto& cell : cells ) {
@@ -92,7 +96,7 @@ struct Figure {
 	{
 		std::set<int> updatedLines;
 		for( auto& cell : cells ) {
-			Point p = Point( pos.x + cell.pos.x, pos.y + cell.pos.y ); 
+			Point p = Point( pos.x + cell.pos.x, pos.y + cell.pos.y );
 			cell.pos = p;
 			field.cellMatrix[p.y][p.x] = cell;
 			updatedLines.insert( p.y );
